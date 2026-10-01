@@ -1,0 +1,406 @@
+﻿<!DOCTYPE html>
+<html lang="fr" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- PWA -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Pointage RH">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    <title>Tableau de Bord - Présences & Pointage RH</title>
+    <!-- Bootstrap 5.3 & Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+
+        .navbar-custom {
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            border-bottom: 3px solid #2563eb;
+        }
+
+        .table-custom thead th {
+            background-color: #f1f5f9;
+            color: #475569;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 14px 16px;
+        }
+
+        .table-custom tbody td {
+            padding: 14px 16px;
+            vertical-align: middle;
+            font-size: 14px;
+        }
+
+        .badge-present {
+            background-color: #d1fae5;
+            color: #065f46;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+
+        .badge-retard {
+            background-color: #fef3c7;
+            color: #92400e;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+
+        .badge-absent {
+            background-color: #fee2e2;
+            color: #991b1b;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Barre de Navigation Supérieure Admin -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm py-3">
+        <div class="container-fluid px-xl-5">
+            <a class="navbar-brand d-flex align-items-center gap-2 fw-bold" href="/">
+                <i class="bi bi-fingerprint text-primary fs-3"></i>
+                <span>Portail RH <span class="badge bg-danger text-white fw-normal ms-1">Admin</span></span>
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#adminNavbar" aria-controls="adminNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="adminNavbar">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-4 gap-1">
+                    <li class="nav-item">
+                        <a class="nav-link active fw-semibold px-3 text-info" href="/">
+                            <i class="bi bi-table me-1"></i> Présences ({{ presences|length }})
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link px-3" href="/pointages">
+                            <i class="bi bi-clock-history me-1"></i> Pointages Bruts
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link px-3" href="/rapports">
+                            <i class="bi bi-bar-chart-line me-1"></i> Rapports & Analyses
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link px-3" href="/programmes_horaires">
+                            <i class="bi bi-calendar3-range me-1"></i> Programmes & Horaires
+                            {% if nb_demandes_horaires and nb_demandes_horaires > 0 %}
+                                <span class="badge bg-warning text-dark ms-1 rounded-pill">{{ nb_demandes_horaires }}</span>
+                            {% endif %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link px-3" href="/comptes_employes">
+                            <i class="bi bi-key me-1"></i> Comptes & Accès
+                        </a>
+                    </li>
+                </ul>
+
+                <div class="d-flex align-items-center gap-3">
+                    <span class="text-white-50 small d-none d-md-inline">
+                        <i class="bi bi-clock me-1 text-info"></i> <span id="horloge" class="font-monospace fw-bold text-light">--:--:--</span>
+                    </span>
+                    <a href="/logout" class="btn btn-outline-danger btn-sm px-3 rounded-pill">
+                        <i class="bi bi-box-arrow-right"></i> Déconnexion
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-xl-5 py-4">
+
+        <!-- Bandeau d'état pointeuse avec bouton de synchronisation -->
+        <div class="alert {% if etat_sync.connectee %}alert-success border-success-subtle{% else %}alert-warning border-warning-subtle{% endif %} shadow-sm rounded-4 d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4 p-3">
+            <div class="d-flex align-items-center gap-2">
+                <span class="fs-5">{% if etat_sync.connectee %}&#128994;{% else %}&#128993;{% endif %}</span>
+                <div>
+                    <strong class="d-block text-dark">
+                        {% if etat_sync.connectee %}Pointeuse ZKTeco connectée (192.168.1.201){% else %}Pointeuse en attente (192.168.1.201){% endif %}
+                    </strong>
+                    <span class="small text-secondary">{{ etat_sync.message }}</span>
+                </div>
+            </div>
+            <form method="post" action="/synchroniser" class="m-0">
+                <button type="submit" class="btn btn-success btn-sm px-3 rounded-pill fw-semibold shadow-sm">
+                    <i class="bi bi-arrow-repeat me-1"></i> Synchroniser maintenant
+                </button>
+            </form>
+        </div>
+
+        <!-- Fiche focus si un collaborateur est filtré -->
+        {% if employe_selectionne %}
+        <div class="card border-0 shadow-sm rounded-4 mb-4 bg-primary-subtle border-start border-4 border-primary">
+            <div class="card-body p-4">
+                <div class="row align-items-center g-3">
+                    <div class="col-md">
+                        <h2 class="h5 fw-bold text-dark mb-1">
+                            <i class="bi bi-person-badge text-primary me-2"></i>{{ employe_selectionne.nom }}
+                        </h2>
+                        <p class="text-secondary small mb-0">
+                            Service actuel : <strong class="text-dark">{{ employe_selectionne.service or "Non défini" }}</strong> &bull;
+                            <strong>{{ presences|length }}</strong> journée(s) de présence trouvée(s)
+                        </p>
+                    </div>
+                    <div class="col-md-auto">
+                        <form method="post" action="/modifier_service/{{ employe_selectionne.id }}" class="d-flex gap-2">
+                            <input type="text" name="service" value="{{ employe_selectionne.service or '' }}" placeholder="Nouveau service..." class="form-control form-control-sm shadow-none" style="max-width: 180px;">
+                            <button type="submit" class="btn btn-primary btn-sm rounded px-3 text-nowrap">
+                                <i class="bi bi-save me-1"></i> Modifier service
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Carte de Filtres -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
+            <div class="card-body p-3 p-md-4">
+                <form method="get" action="/" class="row g-3 align-items-end">
+                    <div class="col-sm-6 col-md-4 col-lg-3">
+                        <label for="date" class="form-label small fw-semibold text-secondary">Date ciblée :</label>
+                        <input type="date" id="date" name="date" value="{{ date_filtre }}" class="form-control form-control-sm shadow-none">
+                    </div>
+
+                    <div class="col-sm-6 col-md-4 col-lg-3">
+                        <label for="employe" class="form-label small fw-semibold text-secondary">Collaborateur :</label>
+                        <select id="employe" name="employe" class="form-select form-select-sm shadow-none">
+                            <option value="">Tous les collaborateurs</option>
+                            {% for e in tous_employes %}
+                                <option value="{{ e.id }}" {% if employe_filtre == e.id|string %}selected{% endif %}>
+                                    {{ e.nom }}{% if e.service %} ({{ e.service }}){% endif %}{% if not e.actif %} [Inactif]{% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-auto d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm px-3 rounded-pill fw-semibold">
+                            <i class="bi bi-funnel me-1"></i> Filtrer
+                        </button>
+                        {% if date_filtre or employe_filtre %}
+                            <a href="/" class="btn btn-light btn-sm border rounded-pill px-3 text-secondary">
+                                <i class="bi bi-x-circle me-1"></i> Réinitialiser
+                            </a>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Tableau des Présences -->
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white mb-4">
+            <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center border-bottom">
+                <h3 class="card-title h6 fw-bold mb-0 text-dark">
+                    <i class="bi bi-calendar2-week text-primary me-2"></i>Tableau des Présences Quotidiennes
+                </h3>
+                <span class="badge bg-light text-secondary border">Total : {{ presences|length }} résultat(s)</span>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover table-custom mb-0">
+                    <thead>
+                        <tr>
+                            <th>Collaborateur</th>
+                            <th>Département</th>
+                            <th>Programme Attribué</th>
+                            <th>Date</th>
+                            <th>Heure Arrivée</th>
+                            <th>Heure Départ</th>
+                            <th>Statut RH</th>
+                            <th class="text-end">Historique</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if presences and presences|length > 0 %}
+                            {% for p in presences %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold text-dark">{{ p.nom }}</div>
+                                    <span class="text-muted small">ID: #{{ p.employe_id }}</span>
+                                </td>
+                                <td>
+                                    {% if p.service %}
+                                        <span class="badge bg-light text-dark border">{{ p.service }}</span>
+                                    {% else %}
+                                        <span class="text-muted small fst-italic">Non renseigné</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if p.type_programme == 'soir' %}
+                                        <span class="badge bg-purple-subtle text-purple border" style="background:#ede9fe; color:#6d28d9; border-color:#ddd6fe;">
+                                            <i class="bi bi-moon-stars-fill me-1"></i>Soir ({{ p.heure_debut_prevue }})
+                                        </span>
+                                    {% elif p.type_programme == 'jour' %}
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                                            <i class="bi bi-sun-fill me-1"></i>Jour ({{ p.heure_debut_prevue }})
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-light text-secondary border">
+                                            <i class="bi bi-clock me-1"></i>{{ p.heure_debut_prevue }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="text-dark fw-semibold">{{ p.date }}</span>
+                                </td>
+                                <td>
+                                    {% if p.heure_arrivee %}
+                                        <span class="font-monospace fw-bold">{{ p.heure_arrivee }}</span>
+                                    {% else %}
+                                        <span class="text-muted fst-italic">Non pointé</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if p.heure_depart %}
+                                        <span class="font-monospace fw-bold">{{ p.heure_depart }}</span>
+                                    {% else %}
+                                        <span class="text-muted fst-italic">Non pointé</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if p.statut == 'présent' %}
+                                        <span class="badge-present d-inline-flex align-items-center gap-1">
+                                            <i class="bi bi-check-circle-fill"></i> À l'heure
+                                        </span>
+                                    {% elif p.statut == 'en retard' %}
+                                        <span class="badge-retard d-inline-flex align-items-center gap-1">
+                                            <i class="bi bi-alarm-fill"></i> En retard
+                                        </span>
+                                    {% else %}
+                                        <span class="badge-absent d-inline-flex align-items-center gap-1">
+                                            <i class="bi bi-x-circle-fill"></i> Absent
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <a href="/pointages?employe={{ p.employe_id }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3" title="Voir les pointages détaillés">
+                                        <i class="bi bi-clock-history me-1"></i> Pointages
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary"></i>
+                                    Aucune présence trouvée pour ce filtre.
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Section Gestion des Employés & Services -->
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white mb-4">
+            <div class="card-header bg-white py-3 px-4 border-bottom">
+                <h4 class="card-title h6 fw-bold mb-0 text-dark">
+                    <i class="bi bi-people-fill text-primary me-2"></i>Administration des Collaborateurs & Services ({{ tous_employes|length }})
+                </h4>
+                <small class="text-secondary">Affectez les départements et gérez l'activation des collaborateurs sur la pointeuse.</small>
+            </div>
+
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    {% for e in tous_employes %}
+                    <div class="col-md-6 col-xl-4">
+                        <div class="p-3 border rounded-3 bg-light d-flex flex-column justify-content-between h-100">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <a href="/?employe={{ e.id }}" class="fw-bold text-dark text-decoration-none">
+                                        {{ e.nom }}
+                                    </a>
+                                    <span class="badge bg-secondary-subtle text-secondary small ms-1">#{{ e.id }}</span>
+                                </div>
+                                {% if e.actif %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">Actif</span>
+                                {% else %}
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Inactif</span>
+                                {% endif %}
+                            </div>
+
+                            <form method="post" action="/modifier_service/{{ e.id }}" class="d-flex gap-2 my-2">
+                                <input type="text" name="service" value="{{ e.service or '' }}" placeholder="Service..." class="form-control form-control-sm shadow-none">
+                                <button type="submit" class="btn btn-primary btn-sm px-2" title="Enregistrer le service">
+                                    <i class="bi bi-check-lg"></i>
+                                </button>
+                            </form>
+
+                            <div class="text-end mt-1">
+                                {% if e.actif %}
+                                    <form method="post" action="/desactiver/{{ e.id }}" class="d-inline" onsubmit="return confirm('Retirer {{ e.nom }} ? (Sera également retiré de la pointeuse)');">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2 small">
+                                            <i class="bi bi-person-x"></i> Retirer
+                                        </button>
+                                    </form>
+                                {% else %}
+                                    <form method="post" action="/reactiver/{{ e.id }}" class="d-inline">
+                                        <button type="submit" class="btn btn-outline-success btn-sm py-0 px-2 small">
+                                            <i class="bi bi-person-check"></i> Réactiver
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        <!-- MENTION SOLENNELLE DE SÉCURITÉ BIOMÉTRIQUE -->
+        <div class="alert alert-info border-0 shadow-sm rounded-4 d-flex align-items-center gap-3 p-3">
+            <i class="bi bi-shield-lock-fill fs-3 text-primary"></i>
+            <div class="small">
+                <strong>Intégrité du système de pointage biométrique :</strong> Les heures réelles d'arrivée et de départ proviennent exclusivement de la pointeuse physique ZKTeco lors de la reconnaissance de l'empreinte et de l'ID. Elles sont <u>strictement inaltérables et inviolables</u> : aucune modification manuelle de ces heures n'est permise dans le logiciel, y compris pour l'administrateur.
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Bootstrap 5.3 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function mettreAJourHorloge() {
+            const m = new Date();
+            const h = String(m.getHours()).padStart(2, '0');
+            const min = String(m.getMinutes()).padStart(2, '0');
+            const s = String(m.getSeconds()).padStart(2, '0');
+            const el = document.getElementById('horloge');
+            if (el) el.textContent = `${h}:${min}:${s}`;
+        }
+        mettreAJourHorloge();
+        setInterval(mettreAJourHorloge, 1000);
+    </script>
+    <!-- Service Worker PWA -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('[PWA] SW enregistré:', reg.scope))
+            .catch(err => console.warn('[PWA] SW erreur:', err));
+        });
+      }
+    </script>
+</body>
+</html>
