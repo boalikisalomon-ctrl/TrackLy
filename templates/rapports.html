@@ -1,0 +1,366 @@
+﻿<!DOCTYPE html>
+<html lang="fr" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- PWA -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Pointage RH">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    <title>Rapports & Statistiques RH - Assiduité & Retards</title>
+    <!-- Bootstrap 5.3 & Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+
+        .navbar-custom {
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            border-bottom: 3px solid #2563eb;
+        }
+
+        .kpi-card {
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .kpi-card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+        }
+
+        .kpi-blue::before { background: #2563eb; }
+        .kpi-amber::before { background: #f59e0b; }
+        .kpi-green::before { background: #10b981; }
+        .kpi-purple::before { background: #8b5cf6; }
+
+        .table-custom thead th {
+            background-color: #f1f5f9;
+            color: #475569;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 14px 16px;
+        }
+
+        .table-custom tbody td {
+            padding: 14px 16px;
+            vertical-align: middle;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Barre de Navigation Supérieure Admin -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm py-3">
+        <div class="container-fluid px-xl-5">
+            <a class="navbar-brand d-flex align-items-center gap-2 fw-bold" href="/">
+                <i class="bi bi-fingerprint text-primary fs-3"></i>
+                <span>Portail RH <span class="badge bg-danger text-white fw-normal ms-1">Admin</span></span>
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#adminNavbar" aria-controls="adminNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="adminNavbar">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-4 gap-1">
+                    <li class="nav-item">
+                        <a class="nav-link px-3" href="/">
+                            <i class="bi bi-table me-1"></i> Présences
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link px-3" href="/pointages">
+                            <i class="bi bi-clock-history me-1"></i> Pointages Bruts
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active fw-semibold px-3 text-info" href="/rapports">
+                            <i class="bi bi-bar-chart-line me-1"></i> Rapports & Analyses
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link px-3" href="/programmes_horaires">
+                            <i class="bi bi-calendar3-range me-1"></i> Programmes & Horaires
+                            {% if nb_demandes_horaires and nb_demandes_horaires > 0 %}
+                                <span class="badge bg-warning text-dark ms-1 rounded-pill">{{ nb_demandes_horaires }}</span>
+                            {% endif %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link px-3" href="/comptes_employes">
+                            <i class="bi bi-key me-1"></i> Comptes & Accès
+                        </a>
+                    </li>
+                </ul>
+
+                <div class="d-flex align-items-center gap-3">
+                    <a href="/logout" class="btn btn-outline-danger btn-sm px-3 rounded-pill">
+                        <i class="bi bi-box-arrow-right"></i> Déconnexion
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-xl-5 py-4">
+
+        <!-- Bandeau d'état pointeuse -->
+        <div class="alert {% if etat_sync.connectee %}alert-success border-success-subtle{% else %}alert-warning border-warning-subtle{% endif %} shadow-sm rounded-4 d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4 p-3">
+            <div class="d-flex align-items-center gap-2">
+                <span class="fs-5">{% if etat_sync.connectee %}&#128994;{% else %}&#128993;{% endif %}</span>
+                <div>
+                    <strong class="d-block text-dark">
+                        {% if etat_sync.connectee %}Pointeuse ZKTeco connectée (192.168.1.201){% else %}Pointeuse en attente (192.168.1.201){% endif %}
+                    </strong>
+                    <span class="small text-secondary">{{ etat_sync.message }}</span>
+                </div>
+            </div>
+            <form method="post" action="/synchroniser" class="m-0">
+                <button type="submit" class="btn btn-success btn-sm px-3 rounded-pill fw-semibold shadow-sm">
+                    <i class="bi bi-arrow-repeat me-1"></i> Synchroniser maintenant
+                </button>
+            </form>
+        </div>
+
+        <!-- En-tête de la Page & Bouton PDF -->
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+            <div>
+                <h1 class="h3 fw-bold text-dark mb-1">
+                    <i class="bi bi-bar-chart-fill text-primary me-2"></i>Rapports d'Assiduité & Analyses des Retards
+                </h1>
+                <p class="text-secondary small mb-0">
+                    Période en cours : <strong>{{ donnees.titre_periode }}</strong> &bull; Département : <strong>{{ donnees.nom_service }}</strong>
+                </p>
+            </div>
+
+            <div>
+                <a href="/rapports/pdf?type_periode={{ params.type_periode }}&date_jour={{ params.date_jour }}&mois={{ params.mois }}&annee={{ params.annee }}&date_debut={{ params.date_debut }}&date_fin={{ params.date_fin }}&service={{ params.service }}&employe={{ params.employe }}"
+                   class="btn btn-danger btn-sm px-4 py-2 rounded-pill fw-semibold shadow-sm d-flex align-items-center gap-2">
+                    <i class="bi bi-file-earmark-pdf-fill"></i> Exporter Rapport Officiel PDF
+                </a>
+            </div>
+        </div>
+
+        <!-- Carte de Filtres Périodes / Département / Collaborateur -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
+            <div class="card-body p-3 p-md-4">
+                <form method="get" action="/rapports" class="row g-3 align-items-end">
+                    <!-- Type de période -->
+                    <div class="col-sm-6 col-md-3">
+                        <label for="type_periode" class="form-label small fw-semibold text-secondary">Fréquence :</label>
+                        <select id="type_periode" name="type_periode" class="form-select form-select-sm shadow-none" onchange="changerChampsPeriode(this.value)">
+                            <option value="journalier" {% if params.type_periode == 'journalier' %}selected{% endif %}>Journalier (Jour fixe)</option>
+                            <option value="mensuel" {% if params.type_periode == 'mensuel' %}selected{% endif %}>Mensuel (Mois complet)</option>
+                            <option value="annuel" {% if params.type_periode == 'annuel' %}selected{% endif %}>Annuel (Année complète)</option>
+                            <option value="libre" {% if params.type_periode == 'libre' %}selected{% endif %}>Période libre (Plage)</option>
+                        </select>
+                    </div>
+
+                    <!-- Champ dynamique date -->
+                    <div class="col-sm-6 col-md-3" id="champ_date_jour" style="display:{% if params.type_periode == 'journalier' %}block{% else %}none{% endif %};">
+                        <label for="date_jour" class="form-label small fw-semibold text-secondary">Jour :</label>
+                        <input type="date" id="date_jour" name="date_jour" value="{{ params.date_jour }}" class="form-control form-control-sm shadow-none">
+                    </div>
+
+                    <div class="col-sm-6 col-md-3" id="champ_mois" style="display:{% if params.type_periode == 'mensuel' or not params.type_periode %}block{% else %}none{% endif %};">
+                        <label for="mois" class="form-label small fw-semibold text-secondary">Mois :</label>
+                        <input type="month" id="mois" name="mois" value="{{ params.mois }}" class="form-control form-control-sm shadow-none">
+                    </div>
+
+                    <div class="col-sm-6 col-md-3" id="champ_annee" style="display:{% if params.type_periode == 'annuel' %}block{% else %}none{% endif %};">
+                        <label for="annee" class="form-label small fw-semibold text-secondary">Année :</label>
+                        <input type="number" id="annee" name="annee" value="{{ params.annee }}" min="2020" max="2035" class="form-control form-control-sm shadow-none">
+                    </div>
+
+                    <!-- Période libre -->
+                    <div class="col-sm-6 col-md-3" id="champ_date_debut" style="display:{% if params.type_periode == 'libre' %}block{% else %}none{% endif %};">
+                        <label for="date_debut" class="form-label small fw-semibold text-secondary">Date début :</label>
+                        <input type="date" id="date_debut" name="date_debut" value="{{ params.date_debut }}" class="form-control form-control-sm shadow-none">
+                    </div>
+                    <div class="col-sm-6 col-md-3" id="champ_date_fin" style="display:{% if params.type_periode == 'libre' %}block{% else %}none{% endif %};">
+                        <label for="date_fin" class="form-label small fw-semibold text-secondary">Date fin :</label>
+                        <input type="date" id="date_fin" name="date_fin" value="{{ params.date_fin }}" class="form-control form-control-sm shadow-none">
+                    </div>
+
+                    <!-- Département -->
+                    <div class="col-sm-6 col-md-3">
+                        <label for="service" class="form-label small fw-semibold text-secondary">Département :</label>
+                        <select id="service" name="service" class="form-select form-select-sm shadow-none">
+                            <option value="">Tous les départements</option>
+                            {% for s in services %}
+                                <option value="{{ s }}" {% if params.service == s %}selected{% endif %}>{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Collaborateur -->
+                    <div class="col-sm-6 col-md-3">
+                        <label for="employe" class="form-label small fw-semibold text-secondary">Collaborateur :</label>
+                        <select id="employe" name="employe" class="form-select form-select-sm shadow-none">
+                            <option value="">Tous les collaborateurs</option>
+                            {% for e in tous_employes %}
+                                <option value="{{ e.id }}" {% if params.employe == e.id|string %}selected{% endif %}>{{ e.nom }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-primary btn-sm px-4 rounded-pill fw-semibold">
+                            <i class="bi bi-funnel me-1"></i> Actualiser
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 4 GRILLES DE STATS CONSOLIDÉES -->
+        <div class="row g-3 mb-4">
+            <!-- 1. Total présences -->
+            <div class="col-sm-6 col-xl-3">
+                <div class="kpi-card kpi-blue p-4 h-100">
+                    <span class="text-uppercase small fw-bold text-secondary d-block mb-1">Présences Totales</span>
+                    <div class="display-6 fw-bold text-dark mb-1">{{ donnees.stats_globales.total_presences }}</div>
+                    <div class="small text-secondary">Journées enregistrées</div>
+                </div>
+            </div>
+
+            <!-- 2. Ponctualité globale -->
+            <div class="col-sm-6 col-xl-3">
+                <div class="kpi-card kpi-green p-4 h-100">
+                    <span class="text-uppercase small fw-bold text-secondary d-block mb-1">Taux de Ponctualité</span>
+                    <div class="display-6 fw-bold text-success mb-1">{{ donnees.stats_globales.pourcentage_a_l_heure }}%</div>
+                    <div class="small text-secondary"><strong>{{ donnees.stats_globales.total_a_l_heure }}</strong> arrivées &le; 08:00</div>
+                </div>
+            </div>
+
+            <!-- 3. Retards constatés -->
+            <div class="col-sm-6 col-xl-3">
+                <div class="kpi-card kpi-amber p-4 h-100">
+                    <span class="text-uppercase small fw-bold text-secondary d-block mb-1">Retards Constatés</span>
+                    <div class="display-6 fw-bold text-warning mb-1">{{ donnees.stats_globales.total_retards }}</div>
+                    <div class="small text-secondary"><strong>{{ donnees.stats_globales.pourcentage_retards }}%</strong> des arrivées (&gt; 08:00)</div>
+                </div>
+            </div>
+
+            <!-- 4. Heures Travaillées -->
+            <div class="col-sm-6 col-xl-3">
+                <div class="kpi-card kpi-purple p-4 h-100">
+                    <span class="text-uppercase small fw-bold text-secondary d-block mb-1">Heures Travaillées</span>
+                    <div class="display-6 fw-bold text-dark mb-1">{{ donnees.stats_globales.total_heures_formatees }}</div>
+                    <div class="small text-secondary">{{ donnees.stats_globales.total_departs_pointes }} départ(s) pointé(s) ({{ donnees.stats_globales.pourcentage_departs }}%)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tableau Synthèse par Collaborateur -->
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white mb-4">
+            <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center border-bottom">
+                <h3 class="card-title h6 fw-bold mb-0 text-dark">
+                    <i class="bi bi-people-fill text-primary me-2"></i>Synthèse Individuelle par Collaborateur
+                </h3>
+                <span class="badge bg-light text-secondary border">{{ donnees.synthese_employes|length }} collaborateur(s)</span>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover table-custom mb-0">
+                    <thead>
+                        <tr>
+                            <th>Collaborateur</th>
+                            <th>Service</th>
+                            <th>Présences</th>
+                            <th>À l'heure</th>
+                            <th>Retards</th>
+                            <th>Taux de Ponctualité</th>
+                            <th>Heures Travaillées</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if donnees.synthese_employes and donnees.synthese_employes|length > 0 %}
+                            {% for e in donnees.synthese_employes %}
+                            <tr>
+                                <td>
+                                    <strong class="text-dark">{{ e.nom }}</strong>
+                                </td>
+                                <td>
+                                    {% if e.service %}
+                                        <span class="badge bg-light text-dark border">{{ e.service }}</span>
+                                    {% else %}
+                                        <span class="text-muted small fst-italic">Non renseigné</span>
+                                    {% endif %}
+                                </td>
+                                <td><strong>{{ e.nb_presences }}</strong> jour(s)</td>
+                                <td class="text-success fw-bold">{{ e.nb_a_l_heure }}</td>
+                                <td class="text-warning fw-bold">{{ e.nb_retards }}</td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="progress flex-grow-1" style="height: 8px;">
+                                            <div class="progress-bar {% if e.pct_ponctualite >= 80 %}bg-success{% elif e.pct_ponctualite >= 50 %}bg-warning{% else %}bg-danger{% endif %}" style="width: {{ e.pct_ponctualite }}%;"></div>
+                                        </div>
+                                        <span class="small fw-bold">{{ e.pct_ponctualite }}%</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border px-2 py-1">{{ e.heures_str }}</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">Aucune donnée trouvée.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Bootstrap 5.3 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function changerChampsPeriode(val) {
+            document.getElementById('champ_date_jour').style.display = (val === 'journalier') ? 'block' : 'none';
+            document.getElementById('champ_mois').style.display = (val === 'mensuel') ? 'block' : 'none';
+            document.getElementById('champ_annee').style.display = (val === 'annuel') ? 'block' : 'none';
+            document.getElementById('champ_date_debut').style.display = (val === 'libre') ? 'block' : 'none';
+            document.getElementById('champ_date_fin').style.display = (val === 'libre') ? 'block' : 'none';
+        }
+    </script>
+    <!-- Service Worker PWA -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('[PWA] SW enregistré:', reg.scope))
+            .catch(err => console.warn('[PWA] SW erreur:', err));
+        });
+      }
+    </script>
+</body>
+</html>

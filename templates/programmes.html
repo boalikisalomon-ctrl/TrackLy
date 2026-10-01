@@ -1,0 +1,478 @@
+﻿<!DOCTYPE html>
+<html lang="fr" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- PWA -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Pointage RH">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    <title>Programmes & Horaires (Jour & Soir) - Administration RH</title>
+    <!-- Bootstrap 5.3 & Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+
+        .navbar-custom {
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            border-bottom: 3px solid #2563eb;
+        }
+
+        .table-custom thead th {
+            background-color: #f1f5f9;
+            color: #475569;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 14px 16px;
+        }
+
+        .table-custom tbody td {
+            padding: 14px 16px;
+            vertical-align: middle;
+            font-size: 14px;
+        }
+
+        .badge-prog-jour {
+            background-color: #e0f2fe;
+            color: #0369a1;
+            font-weight: 600;
+            border: 1px solid #bae6fd;
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+
+        .badge-prog-soir {
+            background-color: #ede9fe;
+            color: #6d28d9;
+            font-weight: 600;
+            border: 1px solid #ddd6fe;
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+
+        .badge-prog-custom {
+            background-color: #f1f5f9;
+            color: #334155;
+            font-weight: 600;
+            border: 1px solid #cbd5e1;
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+
+        .time-badge {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            background-color: #f8fafc;
+            border: 1px solid #cbd5e1;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Barre de Navigation Supérieure Admin -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm py-3">
+        <div class="container-fluid px-xl-5">
+            <a class="navbar-brand d-flex align-items-center gap-2 fw-bold" href="/">
+                <i class="bi bi-fingerprint text-primary fs-3"></i>
+                <span>Portail RH <span class="badge bg-danger text-white fw-normal ms-1">Admin</span></span>
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#adminNavbar" aria-controls="adminNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="adminNavbar">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-4 gap-1">
+                    <li class="nav-item">
+                        <a class="nav-link px-3" href="/">
+                            <i class="bi bi-table me-1"></i> Présences
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link px-3" href="/pointages">
+                            <i class="bi bi-clock-history me-1"></i> Pointages Bruts
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link px-3" href="/rapports">
+                            <i class="bi bi-bar-chart-line me-1"></i> Rapports & Analyses
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active fw-semibold px-3 text-info" href="/programmes_horaires">
+                            <i class="bi bi-calendar3-range me-1"></i> Programmes & Horaires
+                            {% if nb_demandes_horaires and nb_demandes_horaires > 0 %}
+                                <span class="badge bg-warning text-dark ms-1 rounded-pill">{{ nb_demandes_horaires }}</span>
+                            {% endif %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link px-3" href="/comptes_employes">
+                            <i class="bi bi-key me-1"></i> Comptes & Accès
+                        </a>
+                    </li>
+                </ul>
+
+                <div class="d-flex align-items-center gap-3">
+                    <span class="text-white-50 small d-none d-md-inline">
+                        <i class="bi bi-building text-info"></i> Institut Universitaire &bull; Direction
+                    </span>
+                    <a href="/logout" class="btn btn-outline-danger btn-sm px-3 rounded-pill">
+                        <i class="bi bi-box-arrow-right"></i> Déconnexion
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-xl-5 py-4">
+
+        <!-- Bandeau d'état pointeuse -->
+        <div class="alert {% if etat_sync.connectee %}alert-success border-success-subtle{% else %}alert-warning border-warning-subtle{% endif %} shadow-sm rounded-4 d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4 p-3">
+            <div class="d-flex align-items-center gap-2">
+                <span class="fs-5">{% if etat_sync.connectee %}&#128994;{% else %}&#128993;{% endif %}</span>
+                <div>
+                    <strong class="d-block text-dark">
+                        {% if etat_sync.connectee %}Pointeuse ZKTeco connectée (192.168.1.201){% else %}Pointeuse en attente (192.168.1.201){% endif %}
+                    </strong>
+                    <span class="small text-secondary">{{ etat_sync.message }}</span>
+                </div>
+            </div>
+            <form method="post" action="/synchroniser" class="m-0">
+                <button type="submit" class="btn btn-success btn-sm px-3 rounded-pill fw-semibold shadow-sm">
+                    <i class="bi bi-arrow-repeat me-1"></i> Synchroniser maintenant
+                </button>
+            </form>
+        </div>
+
+        <!-- Messages Flash -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{% if category == 'erreur' or category == 'error' %}danger{% elif category == 'succes' %}success{% else %}info{% endif %} alert-dismissible fade show d-flex align-items-center gap-2 rounded-4 shadow-sm mb-4" role="alert">
+                        <i class="bi {% if category == 'erreur' or category == 'error' %}bi-exclamation-triangle-fill{% else %}bi-check-circle-fill{% endif %} fs-5"></i>
+                        <div class="small fw-semibold">{{ message }}</div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- En-tête Titre & Contexte Universitaire -->
+        <div class="row align-items-center mb-4 g-3">
+            <div class="col-md">
+                <h1 class="h3 fw-bold text-dark mb-1">
+                    <i class="bi bi-mortarboard-fill text-primary me-2"></i>Gestion des Programmes & Horaires Universitaires
+                </h1>
+                <p class="text-secondary small mb-0">
+                    Définition des plannings de travail (Cours du Jour, Cours du Soir, Personnalisés). Le système calcule les retards et assiduités de chaque collaborateur par rapport à son heure officielle d'arrivée.
+                </p>
+            </div>
+            <div class="col-md-auto">
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 fs-6 rounded-pill">
+                    <i class="bi bi-people-fill me-1"></i> {{ employes_horaires|length }} collaborateur(s)
+                </span>
+            </div>
+        </div>
+
+        <!-- Avertissement solennel d'inviolabilité biométrique -->
+        <div class="alert alert-info border-0 shadow-sm rounded-4 d-flex align-items-center gap-3 p-3 mb-4">
+            <i class="bi bi-shield-lock-fill text-primary fs-3"></i>
+            <div class="small">
+                <strong>Principe d'intégrité biométrique :</strong> Les heures de pointage réelles (empreintes + ID sur la pointeuse) sont infalsifiables et ne peuvent être modifiées manuellement par quiconque, y compris par l'administrateur. Seuls les <u>horaires réglementaires prévus</u> (cours de jour / soir) sont configurables pour déterminer les retards.
+            </div>
+        </div>
+
+        <!-- SECTION 1 : Demandes de modification en attente -->
+        {% if demandes and demandes|length > 0 %}
+        <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white border-start border-4 border-warning">
+            <div class="card-header bg-warning-subtle py-3 px-4 d-flex justify-content-between align-items-center border-bottom">
+                <h5 class="card-title h6 fw-bold mb-0 text-dark">
+                    <i class="bi bi-bell-fill text-warning me-2"></i>Demandes de modification d'horaires en attente de votre accord ({{ demandes|length }})
+                </h5>
+                <span class="badge bg-warning text-dark fw-bold">À valider</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover table-custom mb-0">
+                    <thead>
+                        <tr>
+                            <th>Collaborateur</th>
+                            <th>Programme Actuel</th>
+                            <th>Nouveau Programme Souhaité</th>
+                            <th>Motif / Justification</th>
+                            <th>Date Demande</th>
+                            <th class="text-end">Décision Direction</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in demandes %}
+                        <tr>
+                            <td>
+                                <strong class="text-dark">{{ d.nom }}</strong>
+                                <span class="badge bg-secondary-subtle text-secondary ms-1">#{{ d.employe_id }}</span>
+                                {% if d.service %}
+                                    <div class="text-muted small">{{ d.service }}</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if d.actuel_type == 'soir' %}
+                                    <span class="badge-prog-soir d-inline-block mb-1"><i class="bi bi-moon-stars-fill me-1"></i>Cours du Soir</span>
+                                {% elif d.actuel_type == 'jour' %}
+                                    <span class="badge-prog-jour d-inline-block mb-1"><i class="bi bi-sun-fill me-1"></i>Cours de Jour</span>
+                                {% else %}
+                                    <span class="badge-prog-custom d-inline-block mb-1">Personnalisé</span>
+                                {% endif %}
+                                <div class="time-badge small mt-1">{{ d.actuel_debut }} - {{ d.actuel_fin }}</div>
+                            </td>
+                            <td>
+                                {% if d.demande_type == 'soir' %}
+                                    <span class="badge-prog-soir d-inline-block mb-1"><i class="bi bi-moon-stars-fill me-1"></i>Cours du Soir</span>
+                                {% elif d.demande_type == 'jour' %}
+                                    <span class="badge-prog-jour d-inline-block mb-1"><i class="bi bi-sun-fill me-1"></i>Cours de Jour</span>
+                                {% else %}
+                                    <span class="badge-prog-custom d-inline-block mb-1">Personnalisé</span>
+                                {% endif %}
+                                <div class="time-badge small text-primary fw-bold mt-1">{{ d.demande_heure_debut }} - {{ d.demande_heure_fin }}</div>
+                                <div class="small text-secondary">{{ d.demande_jours }}</div>
+                            </td>
+                            <td>
+                                <span class="fst-italic text-dark">{{ d.demande_motif or 'Aucun motif renseigné' }}</span>
+                            </td>
+                            <td>
+                                <span class="small text-muted">{{ d.demande_date }}</span>
+                            </td>
+                            <td class="text-end">
+                                <div class="d-inline-flex gap-2">
+                                    <form method="POST" action="/admin/traiter_demande_programme/{{ d.employe_id }}/accepter" onsubmit="return confirm('Valider les nouveaux horaires pour {{ d.nom }} ?');">
+                                        <button type="submit" class="btn btn-success btn-sm px-3 rounded-pill fw-semibold">
+                                            <i class="bi bi-check-lg me-1"></i> Accepter
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="/admin/traiter_demande_programme/{{ d.employe_id }}/refuser" onsubmit="return confirm('Refuser la demande de {{ d.nom }} ?');">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm px-3 rounded-pill">
+                                            <i class="bi bi-x-lg me-1"></i> Refuser
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- SECTION 2 : Tableau complet des programmes collaborateurs -->
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
+            <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center border-bottom flex-wrap gap-2">
+                <h5 class="card-title h6 fw-bold mb-0 text-dark">
+                    <i class="bi bi-person-workspace text-primary me-2"></i>Horaires attribués par collaborateur
+                </h5>
+                <input type="text" id="filtreEmployes" class="form-control form-control-sm w-auto shadow-none" placeholder="Rechercher un collaborateur...">
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover table-custom mb-0" id="tableHoraires">
+                    <thead>
+                        <tr>
+                            <th>Collaborateur</th>
+                            <th>Département</th>
+                            <th>Type de Programme</th>
+                            <th>Horaires Prévus</th>
+                            <th>Jours de Travail</th>
+                            <th>Statut Config.</th>
+                            <th>Modif. par Employé</th>
+                            <th class="text-end">Actions Administrateur</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for emp in employes_horaires %}
+                        <tr>
+                            <td>
+                                <strong class="text-dark">{{ emp.nom }}</strong>
+                                <span class="badge bg-secondary-subtle text-secondary font-monospace ms-1">#{{ emp.employe_id }}</span>
+                                {% if not emp.actif %}
+                                    <span class="badge bg-danger-subtle text-danger ms-1">Inactif</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if emp.service %}
+                                    <span class="badge bg-light text-dark border">{{ emp.service }}</span>
+                                {% else %}
+                                    <span class="text-muted small fst-italic">Non renseigné</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if emp.type_programme == 'soir' %}
+                                    <span class="badge-prog-soir"><i class="bi bi-moon-stars-fill me-1"></i>Cours du Soir</span>
+                                {% elif emp.type_programme == 'jour' %}
+                                    <span class="badge-prog-jour"><i class="bi bi-sun-fill me-1"></i>Cours de Jour</span>
+                                {% else %}
+                                    <span class="badge-prog-custom"><i class="bi bi-gear-fill me-1"></i>Personnalisé</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="time-badge">{{ emp.heure_debut }} - {{ emp.heure_fin }}</span>
+                            </td>
+                            <td>
+                                <span class="small text-secondary">{{ emp.jours_semaine }}</span>
+                            </td>
+                            <td>
+                                {% if emp.programme_configure %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1">
+                                        <i class="bi bi-check-circle me-1"></i>Configuré
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-2 py-1">
+                                        <i class="bi bi-clock me-1"></i>En attente 1ère connexion
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form method="POST" action="/admin/toggle_autorisation_programme/{{ emp.employe_id }}" class="d-inline">
+                                    {% if emp.autoriser_modification %}
+                                        <button type="submit" class="btn btn-sm btn-outline-success rounded-pill px-2 py-1" title="Cliquez pour révoquer l'autorisation">
+                                            <i class="bi bi-unlock-fill me-1"></i> Autorisé
+                                        </button>
+                                    {% else %}
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary rounded-pill px-2 py-1" title="Cliquez pour accorder le droit de modifier directement">
+                                            <i class="bi bi-lock-fill me-1"></i> Verrouillé
+                                        </button>
+                                    {% endif %}
+                                </form>
+                            </td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-primary btn-sm px-3 rounded-pill shadow-sm"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#modalModifHoraire{{ emp.employe_id }}">
+                                    <i class="bi bi-pencil-square me-1"></i> Modifier
+                                </button>
+                            </td>
+                        </tr>
+
+                        <!-- Modal Modification Directe par Admin -->
+                        <div class="modal fade" id="modalModifHoraire{{ emp.employe_id }}" tabindex="-1" aria-labelledby="modalLabel{{ emp.employe_id }}" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content rounded-4 border-0 shadow">
+                                    <form method="POST" action="/admin/modifier_programme/{{ emp.employe_id }}">
+                                        <div class="modal-header border-bottom bg-light px-4 py-3">
+                                            <h5 class="modal-title h6 fw-bold" id="modalLabel{{ emp.employe_id }}">
+                                                <i class="bi bi-calendar-check text-primary me-2"></i>Modifier le Programme de {{ emp.nom }} (#{{ emp.employe_id }})
+                                            </h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                                        </div>
+                                        <div class="modal-body p-4">
+                                            <p class="text-secondary small mb-3">
+                                                Ajustez les heures officielles selon le programme d'enseignement ou administratif fourni par le collaborateur.
+                                            </p>
+
+                                            <!-- Type de programme -->
+                                            <div class="mb-3">
+                                                <label class="form-label small fw-bold text-dark">Type de programme :</label>
+                                                <select name="type_programme" id="selectType{{ emp.employe_id }}" class="form-select shadow-none" onchange="ajusterPresetAdmin('{{ emp.employe_id }}')">
+                                                    <option value="jour" {% if emp.type_programme == 'jour' %}selected{% endif %}>☀️ Cours de Journée (ex: 08:00 - 16:00)</option>
+                                                    <option value="soir" {% if emp.type_programme == 'soir' %}selected{% endif %}>🌙 Cours du Soir (ex: 17:00 - 21:00)</option>
+                                                    <option value="personnalise" {% if emp.type_programme == 'personnalise' %}selected{% endif %}>⚙️ Programme Personnalisé / Flexible</option>
+                                                </select>
+                                            </div>
+
+                                            <!-- Heures début & fin -->
+                                            <div class="row g-2 mb-3">
+                                                <div class="col-6">
+                                                    <label class="form-label small fw-bold text-dark">Heure d'arrivée prévue :</label>
+                                                    <input type="time" name="heure_debut" id="heureDebut{{ emp.employe_id }}" value="{{ emp.heure_debut }}" class="form-control shadow-none" required>
+                                                    <div class="form-text small">Limite pour le calcul du retard</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <label class="form-label small fw-bold text-dark">Heure de départ prévue :</label>
+                                                    <input type="time" name="heure_fin" id="heureFin{{ emp.employe_id }}" value="{{ emp.heure_fin }}" class="form-control shadow-none" required>
+                                                    <div class="form-text small">Fin de journée réglementaire</div>
+                                                </div>
+                                            </div>
+
+                                            <!-- Jours de travail -->
+                                            <div class="mb-3">
+                                                <label class="form-label small fw-bold text-dark">Jours de présence prévus :</label>
+                                                <select name="jours_semaine" class="form-select shadow-none">
+                                                    <option value="Lundi-Vendredi" {% if emp.jours_semaine == 'Lundi-Vendredi' %}selected{% endif %}>Lundi au Vendredi (Classique)</option>
+                                                    <option value="Lundi-Samedi" {% if emp.jours_semaine == 'Lundi-Samedi' %}selected{% endif %}>Lundi au Samedi (Universitaire complet)</option>
+                                                    <option value="Cours du Soir (Lun-Ven)" {% if emp.jours_semaine == 'Cours du Soir (Lun-Ven)' %}selected{% endif %}>Cours du Soir (Lundi - Vendredi)</option>
+                                                    <option value="Samedi uniquement" {% if emp.jours_semaine == 'Samedi uniquement' %}selected{% endif %}>Samedi uniquement</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer border-top bg-light px-4 py-2">
+                                            <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Annuler</button>
+                                            <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">
+                                                <i class="bi bi-save me-1"></i> Enregistrer les horaires
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Bootstrap 5.3 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Recherche dynamique dans le tableau
+        const inputFiltre = document.getElementById('filtreEmployes');
+        if (inputFiltre) {
+            inputFiltre.addEventListener('keyup', function() {
+                const val = this.value.toLowerCase();
+                const lignes = document.querySelectorAll('#tableHoraires tbody tr');
+                lignes.forEach(tr => {
+                    const texte = tr.textContent.toLowerCase();
+                    tr.style.display = texte.includes(val) ? '' : 'none';
+                });
+            });
+        }
+
+        // Ajustement automatique des presets dans la modal admin
+        function ajusterPresetAdmin(empId) {
+            const select = document.getElementById('selectType' + empId);
+            const deb = document.getElementById('heureDebut' + empId);
+            const fin = document.getElementById('heureFin' + empId);
+            if (select.value === 'jour') {
+                deb.value = '08:00';
+                fin.value = '16:00';
+            } else if (select.value === 'soir') {
+                deb.value = '17:00';
+                fin.value = '21:00';
+            }
+        }
+    </script>
+    <!-- Service Worker PWA -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('[PWA] SW enregistré:', reg.scope))
+            .catch(err => console.warn('[PWA] SW erreur:', err));
+        });
+      }
+    </script>
+</body>
+</html>
